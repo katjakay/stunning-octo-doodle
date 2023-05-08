@@ -3,17 +3,24 @@ import { nanoid } from 'nanoid';
 import { Message, User } from '~~/types';
 
 // Define props that will be used in the components
-const props = defineProps<{
-  messages: Message[];
-  users: User[];
-  me: User;
-  usersTyping?: User[];
-}>();
+const props = withDefaults(
+  defineProps<{
+    messages: Message[];
+    users: User[];
+    me: User;
+    usersTyping?: User[];
+  }>(),
+  {
+    usersTyping: () => [],
+  },
+);
 
-// Creating an event with a function so send a message
+// Creating an event with a function to send a message
 const emit = defineEmits<{
   (event: 'newMessage', newMessage: Message): void;
 }>();
+
+const open = ref(false);
 
 function getUser(id: string) {
   return props.users.find((user) => user.id === id);
@@ -30,8 +37,6 @@ watch(
   },
 );
 
-const isOpen = ref(true);
-
 const textMessage = ref('');
 
 function sendMessage() {
@@ -46,19 +51,16 @@ function sendMessage() {
 }
 </script>
 
+<!-- Presentaton in frontend -->
 <template>
   <div class="fixed bottom-[10px] right-[10px]">
-    <button
-      v-show="!isOpen"
-      class="bg-blue-800 p-3 rounded"
-      @click="isOpen = true"
-    >
+    <button v-show="!open" class="bg-blue-800 p-3 rounded" @click="open = true">
       <IconChat class="w-8 h-8 text-white" />
     </button>
 
     <div
-      v-if="isOpen"
-      class="box bg-gray-200 dark:bg-gray-800 w-[450px] rounded p-1"
+      v-if="open"
+      class="box bg-gray-200 dark:bg-gray-800 w-[450px] rounded p-2"
     >
       <header
         class="bg-gray-600 dark:bg-gray-900 px-4 flex justify-between items-center text-white"
@@ -66,7 +68,7 @@ function sendMessage() {
         Customer Support Chat
 
         <!-- Setting the different state of the button here -->
-        <button class="p-4 pr-0" @click="isOpen = false">
+        <button class="p-4 pr-0" @click="open = false">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
@@ -89,20 +91,47 @@ function sendMessage() {
         <ChatBubble
           v-for="message in messages"
           :key="message.id"
-          :user="getUser(message.userId)"
           :message="message"
-          :is-mine="me.id === message.userId"
+          :user="getUser(message.userId)"
+          :my-message="message.userId === me.id"
         />
-      </div>
 
+        <ChatBubble
+          v-for="message in messages"
+          :key="message.id"
+          :message="message"
+          :user="getUser(message.userId)"
+          :my-message="message.userId === me.id"
+        />
+
+        <ChatBubble v-for="user in usersTyping" :key="user.id" :user="user">
+          <AppLoading />
+        </ChatBubble>
+      </div>
+      <!-- Footer -->
       <footer class="p-2">
         <input
+          ref="input"
+          class="input w-full px-2 block"
           type="text"
-          v-model="textMessage"
-          @keypress.enter.exact.prevent="sendMessage"
           placeholder="Type your message"
-          class="input w-full block"
+          @keypress.enter="
+            $emit('newMessage', {
+              id: nanoid(),
+              userId: me.id,
+              createdAt: new Date(),
+              text: ($event.target as HTMLInputElement).value,
+            });
+            ($event.target as HTMLInputElement).value = '';
+          "
         />
+
+        <div class="h-6 py-1 px-2 text-sm italic">
+          <span v-if="usersTyping.length">
+            {{ usersTyping.map((user) => user.name).join(' and ') }}
+            {{ usersTyping.length === 1 ? 'is' : 'are' }} typing
+          </span>
+        </div>
       </footer>
     </div>
   </div>
